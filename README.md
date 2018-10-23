@@ -1,6 +1,6 @@
 # Butters
 
-![professor chaos](https://vignette.wikia.nocookie.net/southpark/images/b/b8/Professor-chaos.png/revision/latest?cb=20180409101847)
+<img src="https://vignette.wikia.nocookie.net/southpark/images/b/b8/Professor-chaos.png/revision/latest?cb=20180409101847" style="max-width:100%;" width="120">
 
 Tooling for doing chaos engineering on a kubernetes cluster. Inspired by [blockade](https://github.com/worstcase/blockade/)
 
