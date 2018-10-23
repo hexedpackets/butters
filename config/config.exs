@@ -9,7 +9,10 @@ config :butters, :node_affinity_blacklist, [
   "butters/ignore"
 ]
 config :butters, :traffic_profile, [
-  slow: "delay 75ms 100ms distribution normal"
+  slow: "delay 75ms 100ms distribution normal",
+  flaky: "loss 30%",
+  corrupt: "corrupt 5%",
+  duplicate: "duplicate 1%",
 ]
 
 config :butters, :device, "eth0"
