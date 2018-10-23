@@ -7,9 +7,6 @@ defmodule Butters do
   alias Kazan.Apis.Core.V1.Pod
   alias Kazan.Models.Apimachinery.Meta.V1.ObjectMeta
 
-  @container_security_context %Kazan.Apis.Core.V1.SecurityContext{privileged: true}
-  @minimal_resources %Kazan.Apis.Core.V1.ResourceRequirements{limits: %{cpu: "50m", memory: "64Mi"}, requests: %{cpu: "50m", memory: "64Mi"}}
-
   @doc """
   Create a Kazan server object that is authenticated with gcloud.
   """
@@ -27,24 +24,12 @@ defmodule Butters do
      Kazan.run!(request, server: Butters.gke_server())
   end
 
-  def run_iptables(command) when is_binary(command), do: run_iptables([command])
-  def run_iptables(command) do
-    pod = iptables_container(command)
-    |> run_pod("iptables")
-    |> Butters.PodWatch.wait_for_completion()
-
-    logs = get_logs(pod)
-    delete_pod(pod)
-
-    logs
-  end
-
   @doc """
   Create the NodeAddinity object based on the runtime config.
   """
   def node_affinity() do
-    expressions = Application.get_env(:butters, :node_affinity)
-    |> Enum.map(fn aff -> struct(Kazan.Apis.Core.V1.NodeSelectorRequirement, aff) end)
+    expressions = Application.get_env(:butters, :node_affinity_blacklist)
+    |> Enum.map(fn label -> %Kazan.Apis.Core.V1.NodeSelectorRequirement{key: label, operator: "DoesNotExist"} end)
     terms = [%Kazan.Apis.Core.V1.NodeSelectorTerm{match_expressions: expressions}]
 
     %Kazan.Apis.Core.V1.Affinity{
@@ -57,8 +42,8 @@ defmodule Butters do
   @doc """
   Run a single-container pod in the kubernetes cluster. All containers run in the same namespace.
   """
-  def run_pod(container, name) do
-    Logger.debug("Running pod #{name}")
+  def run_pod(container, name, node_name \\ nil) do
+    Logger.debug("Running pod #{name} on node #{node_name}")
     namespace = Application.get_env(:butters, :namespace)
 
     %Pod{
@@ -72,25 +57,13 @@ defmodule Butters do
         affinity: node_affinity(),
         containers: [container],
         host_network: true,
+        node_name: node_name,
         service_account_name: Application.get_env(:butters, :service_account_name),
         restart_policy: "Never",
       }
     }
     |> Kazan.Apis.Core.V1.create_namespaced_pod!(namespace)
     |> run!()
-  end
-
-  @doc """
-  Create a Container object for running iptables commands.
-  """
-  def iptables_container(command) do
-    %Kazan.Apis.Core.V1.Container{
-      security_context: @container_security_context,
-      command: command,
-      image: Application.get_env(:butters, :iptables_image),
-      name: "iptables",
-      resources: @minimal_resources,
-    }
   end
 
   def get_logs(%Pod{metadata: %ObjectMeta{name: name, namespace: namespace}}) do
@@ -104,14 +77,26 @@ defmodule Butters do
   end
 
   @doc """
-  Select a node to mess up with chaos.
+  Find all nodes available for chaosing.
   """
-  def select_random_node() do
+  def all_nodes() do
     Kazan.Apis.Core.V1.list_node!()
     |> run!()
     |> Map.get(:items)
-    |> Enum.random()
-    |> Map.get(:metadata)
-    |> Map.get(:name)
+    |> Stream.filter(&node_filter/1)
+    |> Enum.map(fn %{metadata: %{name: name}} -> name end)
+  end
+
+  @doc """
+  Select a node to mess up with chaos.
+  """
+  def select_random_node() do
+    all_nodes() |> Enum.random()
+  end
+
+  defp node_filter(%Kazan.Apis.Core.V1.Node{metadata: %ObjectMeta{labels: labels}}) do
+    Application.get_env(:butters, :node_affinity_blacklist)
+    |> Enum.any?(fn ignore_label -> Map.has_key?(labels, ignore_label) end)
+    |> Kernel.not()
   end
 end

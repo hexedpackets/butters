@@ -2,7 +2,7 @@
 
 ![professor chaos](https://vignette.wikia.nocookie.net/southpark/images/b/b8/Professor-chaos.png/revision/latest?cb=20180409101847)
 
-Tooling for doing chaos engineering on a kubernetes cluster.
+Tooling for doing chaos engineering on a kubernetes cluster. Inspired by [blockade](https://github.com/worstcase/blockade/)
 
 ## Installation
 

@@ -1,6 +1,8 @@
 defmodule Butters.PodWatch do
   @doc """
   Watches for a pod to finish whatever its supposed to do.
+
+  TODO: handle when a pod errors out. Right now the GenServer will stay open until a successful exit.
   """
 
   use GenServer
@@ -36,8 +38,7 @@ defmodule Butters.PodWatch do
 
   @impl GenServer
   def handle_info(%Kazan.Watcher.Event{object: object, type: type}, state) do
-    object |> inspect |> Logger.info
-    type |> inspect |> Logger.info
+    Logger.debug("Pod event #{type}: #{inspect(object)}")
     {:noreply, state}
   end
 
