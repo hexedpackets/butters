@@ -23,9 +23,10 @@ be found at [https://hexdocs.pm/butters](https://hexdocs.pm/butters).
 
 ## TODOS
 
-- [ ] Partition off individual kubelets from the master
+- [x] Partition off individual kubelets from the master
 - [ ] Bombard the kubernetes-api with requests
 - [ ] Force resource exhaustion on an individual node
 - [ ] Disconnect a node from the network for some time period and reconnect it
 - [ ] Kill a node and monitor what happens to its workloads
-- [ ] slow/flaky network connections between master and nodes
+- [x] slow/flaky network connections between master and nodes
+- [ ] add anti-affinity for pod tags to avoid hurting sensitive applications

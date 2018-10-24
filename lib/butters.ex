@@ -94,6 +94,18 @@ defmodule Butters do
     all_nodes() |> Enum.random()
   end
 
+  @doc """
+  Determine the IP address of the kubernetes master.
+  """
+  def get_master_ip() do
+    result = Kazan.Apis.Core.V1.read_namespaced_endpoints!("default", "kubernetes") |> run!()
+
+    case result do
+      %{subsets: [%{addresses: [%{ip: addr}]}]} -> {:ok, addr}
+      _ -> {:error, :unknown}
+    end
+  end
+
   defp node_filter(%Kazan.Apis.Core.V1.Node{metadata: %ObjectMeta{labels: labels}}) do
     Application.get_env(:butters, :node_affinity_blacklist)
     |> Enum.any?(fn ignore_label -> Map.has_key?(labels, ignore_label) end)

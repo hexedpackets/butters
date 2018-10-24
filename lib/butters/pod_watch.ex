@@ -25,15 +25,14 @@ defmodule Butters.PodWatch do
   end
 
   @impl GenServer
-  def handle_info(%Kazan.Watcher.Event{object: %Pod{status: %PodStatus{phase: "Running"}}, type: :modified}, state = %{name: name}) do
-    Logger.debug("Pod #{name} is running")
-    {:noreply, state}
-  end
+  def handle_info(%Kazan.Watcher.Event{object: %Pod{status: %PodStatus{phase: phase}}, type: :modified}, state = %{name: name}) do
+    Logger.debug("Pod #{name} is #{phase}")
 
-  @impl GenServer
-  def handle_info(%Kazan.Watcher.Event{object: %Pod{status: %PodStatus{phase: "Succeeded"}}, type: :modified}, state = %{name: name}) do
-    Logger.debug("Pod #{name} has completed")
-    {:stop, :normal, state}
+    case phase do
+      "Running" -> {:noreply, state}
+      "Succeeded" -> {:stop, :normal, state}
+      "Failed" -> {:stop, :pod_failure, state}
+    end
   end
 
   @impl GenServer

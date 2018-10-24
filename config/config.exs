@@ -13,6 +13,7 @@ config :butters, :traffic_profile, [
   flaky: "loss 30%",
   corrupt: "corrupt 5%",
   duplicate: "duplicate 1%",
+  blackhole: "loss 100%",
 ]
 
 config :butters, :device, "eth0"

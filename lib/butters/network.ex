@@ -7,6 +7,9 @@ defmodule Butters.Network do
 
   require Logger
 
+  @master_traffic_class "1:1"
+  @default_traffic_class "1:2"
+
   @doc """
   Create a Container object for running iptables commands.
   """
@@ -49,6 +52,17 @@ defmodule Butters.Network do
     |> run_pod(profile, node)
   end
 
+  def cause_controlled_chaos(profile, node) do
+    Logger.info("Running the #{profile} profile on the control plane of #{node}")
+
+    filter_control_plane(node)
+
+    profile
+    |> net_config()
+    |> net_command(net_device(), @master_traffic_class)
+    |> run_pod(profile, node)
+  end
+
   @doc """
   Removes all rules for a node to hopefully restore it to normal operation. But can Chaos truly be tamed?
   """
@@ -59,6 +73,20 @@ defmodule Butters.Network do
     # We should handle this cleanly, that would count as a successful restore.
     ["tc", "qdisc", "del", "dev", net_device(), "root"]
     |> run_pod("restore-#{node}", node)
+  end
+
+  @doc """
+  Setup filtering for traffic between the kubelet and the master while leaving everything else untouched.
+  """
+  def filter_control_plane(node) do
+    dev = net_device()
+    {:ok, master_ip} = Butters.get_master_ip()
+    priority_qdisc = "tc qdisc replace dev eth0 root handle 1: prio"
+    master_filter = "tc filter add dev #{dev} protocol ip parent 1: prio 1 u32 match ip dst #{master_ip}/32 flowid #{@master_traffic_class}"
+    default_filter = "tc filter add dev #{dev} protocol all parent 1: prio 2 u32 match u32 0 0 flowid #{@default_traffic_class}"
+
+    ["sh", "-c", Enum.join([priority_qdisc, master_filter, default_filter], " && ")]
+    |> run_pod("master-filter-#{node}", node)
   end
 
   @doc """
@@ -74,7 +102,7 @@ defmodule Butters.Network do
     cause_chaos(:slow, node)
   end
 
-  defp net_command(params, device), do: ["tc", "qdisc", "replace", "dev", device, "root", "netem" | params]
+  defp net_command(params, device, parent \\ "root"), do: ["tc", "qdisc", "add", "dev", device, "parent", parent, "netem" | params]
   defp net_config(profile), do: Application.get_env(:butters, :traffic_profile) |> Keyword.get(profile) |> String.split()
 
   # TODO: find the device from the node instead of assuming it from the config
