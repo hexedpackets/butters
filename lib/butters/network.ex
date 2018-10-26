@@ -34,10 +34,10 @@ defmodule Butters.Network do
     |> Butters.run_pod("iptables-#{name}", node)
     |> Map.get(:metadata)
 
-    {status, logs} = Butters.PodWatch.wait_for_completion(pod)
+    result = Butters.PodWatch.wait_for_completion(pod)
     Butters.delete_pod(pod)
 
-    {status, logs}
+    result
   end
 
   @doc """
@@ -69,10 +69,12 @@ defmodule Butters.Network do
   def restore(node) do
     Logger.info("Restoring network for #{node}")
 
-    # TODO: This can exit with "RTNETLINK answers: No such file or directory" if there are no rules set.
-    # We should handle this cleanly, that would count as a successful restore.
-    ["tc", "qdisc", "del", "dev", net_device(), "root"]
-    |> run_pod("restore-#{node}", node)
+    # This can exit with "RTNETLINK answers: No such file or directory" if there are no rules set, which is fine.
+    result = ["tc", "qdisc", "del", "dev", net_device(), "root"] |> run_pod("restore-#{node}", node)
+    case result do
+      {:error, "RTNETLINK answers: No such file or directory\n"} -> {:ok, "Node is in default state"}
+      _ -> result
+    end
   end
 
   @doc """
@@ -93,8 +95,23 @@ defmodule Butters.Network do
   Restore every node in the cluster
   """
   def restore_all() do
-    Butters.all_nodes()
-    |> Enum.map(&restore/1)
+    {_, failed} = Butters.all_nodes()
+    |> Enum.map_reduce(%{}, fn node, acc ->
+      IO.inspect(acc, label: "acc")
+      result = restore(node)
+      case resu
+
+      lt do
+        {:ok, _} -> {result, acc}
+        {:error, logs} -> {result, Map.put(acc, node, logs)} |> IO.inspect(label: "updated")
+      end
+    end)
+
+    if failed == %{} do
+      :ok
+    else
+      {:error, failed}
+    end
   end
 
   def random_slow() do
