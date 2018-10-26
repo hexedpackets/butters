@@ -9,14 +9,13 @@ defmodule Butters.PodWatch do
   require Logger
   alias Kazan.Apis.Core.V1.Pod
   alias Kazan.Apis.Core.V1.PodStatus
-  alias Kazan.Models.Apimachinery.Meta.V1.ObjectMeta
 
   @impl GenServer
   def init(pod = %{namespace: namespace, name: name}) do
     Kazan.Apis.Core.V1.read_namespaced_pod_status!(namespace, name)
     |> Kazan.Watcher.start_link(send_to: self(), server: Butters.gke_server())
 
-    {:ok, pod}
+    {:ok, Map.put(pod, :phase, "Pending")}
   end
 
   @impl GenServer
@@ -28,11 +27,7 @@ defmodule Butters.PodWatch do
   def handle_info(%Kazan.Watcher.Event{object: %Pod{status: %PodStatus{phase: phase}}, type: :modified}, state = %{name: name}) do
     Logger.debug("Pod #{name} is #{phase}")
 
-    case phase do
-      "Running" -> {:noreply, state}
-      "Succeeded" -> {:stop, :normal, state}
-      "Failed" -> {:stop, :pod_failure, state}
-    end
+    {:noreply, Map.put(state, :phase, phase)}
   end
 
   @impl GenServer
@@ -41,18 +36,25 @@ defmodule Butters.PodWatch do
     {:noreply, state}
   end
 
+  @impl GenServer
+  def handle_call(:phase, _from, state = %{phase: phase}) do
+    {:reply, phase, state}
+  end
+
   @doc """
-  Start a watch on a given pod and wait for it to finish.
+  Start a watch on a given pod and wait for it to finish, returning any logs from the pod.
   """
-  def wait_for_completion(pod = %Pod{metadata: %ObjectMeta{name: name, namespace: namespace}}) do
-    {:ok, pid} = GenServer.start_link(__MODULE__, %{name: name, namespace: namespace})
+  def wait_for_completion(pod_metadata) do
+    {:ok, pid} = GenServer.start_link(__MODULE__, pod_metadata)
+    _wait_for_completion(pid, pod_metadata)
+  end
 
-    # Wait until the GenServer exits.
-    ref = Process.monitor(pid)
-    receive do
-      {:DOWN, ^ref, _, _, _} -> nil
+  defp _wait_for_completion(pid, metadata) do
+    case GenServer.call(pid, :phase) do
+      "Running" -> _wait_for_completion(pid, metadata)
+      "Pending"-> _wait_for_completion(pid, metadata)
+      "Succeeded" -> {:ok, Butters.get_logs(metadata)}
+      "Failed" -> {:error, Butters.get_logs(metadata)}
     end
-
-    pod
   end
 end

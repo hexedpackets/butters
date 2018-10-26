@@ -32,12 +32,12 @@ defmodule Butters.Network do
     pod = command
     |> iptables_container()
     |> Butters.run_pod("iptables-#{name}", node)
-    |> Butters.PodWatch.wait_for_completion()
+    |> Map.get(:metadata)
 
-    logs = Butters.get_logs(pod)
+    {status, logs} = Butters.PodWatch.wait_for_completion(pod)
     Butters.delete_pod(pod)
 
-    logs
+    {status, logs}
   end
 
   @doc """

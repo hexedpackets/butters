@@ -66,11 +66,11 @@ defmodule Butters do
     |> run!()
   end
 
-  def get_logs(%Pod{metadata: %ObjectMeta{name: name, namespace: namespace}}) do
+  def get_logs(%{name: name, namespace: namespace}) do
     Kazan.Apis.Core.V1.read_namespaced_pod_log!(namespace, name) |> run!()
   end
 
-  def delete_pod(%Pod{metadata: %ObjectMeta{name: name, namespace: namespace}}) do
+  def delete_pod(%{name: name, namespace: namespace}) do
     %Kazan.Models.Apimachinery.Meta.V1.DeleteOptions{}
     |> Kazan.Apis.Core.V1.delete_namespaced_pod!(namespace, name)
     |> run!()
