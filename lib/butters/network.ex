@@ -95,22 +95,14 @@ defmodule Butters.Network do
   Restore every node in the cluster
   """
   def restore_all() do
-    {_, failed} = Butters.all_nodes()
-    |> Enum.map_reduce(%{}, fn node, acc ->
-      IO.inspect(acc, label: "acc")
-      result = restore(node)
-      case resu
+    result = Butters.all_nodes()
+    |> Enum.map(fn node -> Task.async(fn -> {node, restore(node)} end) end)
+    |> Enum.map(&(Task.await(&1, 60_000)))
+    |> Enum.group_by(fn {_node, {status, _logs}} -> status end)
 
-      lt do
-        {:ok, _} -> {result, acc}
-        {:error, logs} -> {result, Map.put(acc, node, logs)} |> IO.inspect(label: "updated")
-      end
-    end)
-
-    if failed == %{} do
-      :ok
-    else
-      {:error, failed}
+    case result do
+      %{error: failed} -> {:error, failed}
+      %{ok: _} -> :ok
     end
   end
 
